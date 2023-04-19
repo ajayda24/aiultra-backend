@@ -57,6 +57,7 @@ process.on("uncaughtException", function (err) {
 const PORT = process.env.PORT || 3001;
 
 try {
+  // connectDB("mongodb://0.0.0.0:27017/aiultra")
   connectDB(process.env.MONGODB_URL)
     .then(() => {
       app.listen(PORT, () => {
