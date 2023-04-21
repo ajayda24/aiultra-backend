@@ -1,3 +1,4 @@
+const fs = require("fs");
 const express = require("express");
 const uuid = require("uuid").v4;
 const HttpError = require("../utils/HttpError");
@@ -5,7 +6,9 @@ const HttpError = require("../utils/HttpError");
 const router = express.Router();
 
 const { UserModel, PostModel } = require("../model/user.model");
-// const PostModel = require("../model/post.model");
+const openai = require("../utils/openai");
+
+const cloudinary = require("../utils/cloudinary");
 
 router.post("/postUser", async (req, res, next) => {
   const { photoURL, uid, email, displayName, provider } = req.body;
@@ -39,13 +42,12 @@ router.post("/postUser", async (req, res, next) => {
     }
   } else {
     const user = new UserModel({
-      userId: uid,
+      userId: uuid(),
       fullName: displayName,
       username: displayName.trim(),
       email: email,
       userImage: photoURL,
     });
-    console.log(user);
     user.socialAuth.push({
       providerId: provider.providerId,
       authId: provider.uid,
@@ -85,7 +87,9 @@ router.get("/getUser", async (req, res, next) => {
 router.get("/getUserPosts", async (req, res, next) => {
   const { email } = req.query;
   try {
-    const user = await UserModel.findOne({ email: email }).populate("posts");
+    const user = await UserModel.findOne({ email: email })
+      .populate("posts")
+      .sort("-createdAt");
     const userPosts = user.toObject();
 
     const updatedPosts = userPosts.posts.map((post) => {
@@ -132,12 +136,20 @@ router.get("/getUserLikedPosts", async (req, res, next) => {
 });
 
 router.get("/getAllPosts", async (req, res, next) => {
+  const { email } = req.query;
   try {
     const posts = await PostModel.find({}).sort("-createdAt");
+
+    const postsInJson = JSON.stringify(posts);
+    const allPosts = JSON.parse(postsInJson);
+    allPosts.map((post) => {
+      const userLiked = !!post.likedUsers.find((p) => p === email);
+      return (post.userLiked = userLiked);
+    });
     res.json({
       status: true,
       message: "All posts",
-      data: posts,
+      data: allPosts,
     });
   } catch (error) {
     return next(new HttpError(error, 500));
@@ -145,14 +157,95 @@ router.get("/getAllPosts", async (req, res, next) => {
 });
 
 router.get("/getAllTrendingPosts", async (req, res, next) => {
+  const { email } = req.query;
+
   try {
-    const posts = await PostModel.find({ likes: { $gt: 2 } }).sort(
-      "-createdAt"
-    );
+    const posts = await PostModel.find({ likes: { $gt: 2 } })
+      .sort("-likes")
+      .limit(4);
+
+    const postsInJson = JSON.stringify(posts);
+    const allPosts = JSON.parse(postsInJson);
+    allPosts.map((post) => {
+      const userLiked = !!post.likedUsers.find((p) => p === email);
+      return (post.userLiked = userLiked);
+    });
     res.json({
       status: true,
       message: "All posts",
-      data: posts,
+      data: allPosts,
+    });
+  } catch (error) {
+    return next(new HttpError(error, 500));
+  }
+});
+
+router.post("/postNewImage", async (req, res, next) => {
+  const { name = "hello welcome to earth", userImage, email, tags } = req.body;
+  const aiResponse = await openai.createImage({
+    prompt: name,
+    n: 1,
+    size: "512x512",
+    response_format: "url",
+  });
+  const imageUrl = aiResponse.data.data[0].url;
+  let uploadedUrl = imageUrl;
+  if (imageUrl) {
+    const cloudinaryResponse = await cloudinary.uploader.upload(imageUrl, {
+      folder: "/aiultra",
+    });
+    uploadedUrl = cloudinaryResponse.secure_url;
+  }
+  try {
+    const post = new PostModel({
+      postId: uuid(),
+      name,
+      imageUrl: uploadedUrl,
+      userImage,
+      email,
+      tags,
+    });
+    await post.save();
+    res.json({
+      status: true,
+      message: "AI generated image successfully",
+      data: {
+        imageUrl,
+      },
+    });
+  } catch (error) {
+    return next(new HttpError(error, 500));
+  }
+});
+
+router.post("/postReactImage", async (req, res, next) => {
+  const { postId, email, like } = req.body;
+  console.log(req.body);
+  try {
+    const post = await PostModel.findOne({ postId: postId });
+    const userALreadyLiked = post.likedUsers.find((u) => u == email);
+    if (like) {
+      if (userALreadyLiked) {
+        return res.json({
+          status: true,
+          message: "User already liked this image.",
+          data: null,
+        });
+      }
+    }
+    if (like) {
+      post.likes = post.likes + 1;
+      post.likedUsers.push(email);
+    } else {
+      post.likes = post.likes - 1;
+      const likedUsers = post.likedUsers.filter((p) => p != email);
+      post.likedUsers = likedUsers;
+    }
+    await post.save();
+    res.json({
+      status: true,
+      message: "Updated likes of image.",
+      data: null,
     });
   } catch (error) {
     return next(new HttpError(error, 500));

@@ -4,7 +4,7 @@ const cors = require("cors");
 
 const connectDB = require("./utils/connect.js");
 const userRoutes = require("./routes/user.routes.js");
-const dalleRoutes = require("./routes/dalle.route.js");
+const postRoutes = require("./routes/post.route.js");
 
 const cloudinary = require("./utils/cloudinary.js");
 
@@ -19,8 +19,8 @@ app.use(
   })
 );
 
+// app.use("/api/post", postRoutes);
 app.use("/api/user", userRoutes);
-app.use("/api/dalle", dalleRoutes);
 
 app.get("/", async (req, res, next) => {
   res.status(200).json({

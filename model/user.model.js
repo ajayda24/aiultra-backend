@@ -44,7 +44,7 @@ const postSchema = new Schema(
     userImage: { type: String, required: true },
     email: { type: String, required: true },
     tags: [{ type: String }],
-    likes: Number,
+    likes: { type: Number, default: 0 },
     likedUsers: [{ type: String }],
   },
   { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
