@@ -160,7 +160,10 @@ router.get("/getAllTrendingPosts", async (req, res, next) => {
   const { email } = req.query;
 
   try {
-    const posts = await PostModel.find({ likes: { $gt: 2 } })
+    const allUsersCount = await UserModel.find({}).countDocuments();
+    const trendingLikeCount = Math.round((allUsersCount * 6) / 10);
+
+    const posts = await PostModel.find({ likes: { $gte: trendingLikeCount } })
       .sort("-likes")
       .limit(4);
 
@@ -172,7 +175,7 @@ router.get("/getAllTrendingPosts", async (req, res, next) => {
     });
     res.json({
       status: true,
-      message: "All posts",
+      message: "All trending posts",
       data: allPosts,
     });
   } catch (error) {
