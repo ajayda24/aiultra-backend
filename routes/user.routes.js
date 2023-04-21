@@ -7,6 +7,7 @@ const router = express.Router();
 
 const { UserModel, PostModel } = require("../model/user.model");
 const openai = require("../utils/openai");
+const deepai = require("../utils/deepai");
 
 const cloudinary = require("../utils/cloudinary");
 
@@ -185,16 +186,26 @@ router.get("/getAllTrendingPosts", async (req, res, next) => {
 
 router.post("/postNewImage", async (req, res, next) => {
   const { name = "hello welcome to earth", userImage, email, tags } = req.body;
-  const aiResponse = await openai.createImage({
-    prompt: name,
-    n: 1,
-    size: "512x512",
-    response_format: "url",
+  // const aiResponse = await openai.createImage({
+  //   prompt: name,
+  //   n: 1,
+  //   size: "512x512",
+  //   response_format: "url",
+  // });
+  // const imageUrl = aiResponse.data.data[0].url;
+  const result = await deepai.callStandardApi("fantasy-portrait-generator", {
+    text: name,
+    image: "1",
+    image1: "1",
+    image2: "1",
+    grid_size: "1",
+    width: "512",
+    height: "512",
   });
-  const imageUrl = aiResponse.data.data[0].url;
-  let uploadedUrl = imageUrl;
-  if (imageUrl) {
-    const cloudinaryResponse = await cloudinary.uploader.upload(imageUrl, {
+
+  let uploadedUrl = result.output_url;
+  if (result) {
+    const cloudinaryResponse = await cloudinary.uploader.upload(uploadedUrl, {
       folder: "/aiultra",
     });
     uploadedUrl = cloudinaryResponse.secure_url;
@@ -213,7 +224,7 @@ router.post("/postNewImage", async (req, res, next) => {
       status: true,
       message: "AI generated image successfully",
       data: {
-        imageUrl,
+        imageUrl: uploadedUrl,
       },
     });
   } catch (error) {
@@ -249,6 +260,30 @@ router.post("/postReactImage", async (req, res, next) => {
       status: true,
       message: "Updated likes of image.",
       data: null,
+    });
+  } catch (error) {
+    return next(new HttpError(error, 500));
+  }
+});
+
+router.get("/deepai", async (req, res, next) => {
+  const { text } = req.query;
+
+  try {
+    const result = await deepai.callStandardApi("fantasy-portrait-generator", {
+      text: text,
+      image: "1",
+      image1: "1",
+      image2: "1",
+      grid_size: "1",
+      width: "512",
+      height: "512",
+    });
+    console.log(result);
+    res.json({
+      status: true,
+      message: "Deep AI generated image.",
+      data: result,
     });
   } catch (error) {
     return next(new HttpError(error, 500));
